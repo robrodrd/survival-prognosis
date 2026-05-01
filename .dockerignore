@@ -1,0 +1,27 @@
+# --- IDE & OS TRASH ---
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# --- VERSION CONTROL ---
+.git
+.gitignore
+
+# --- PYTHON RECYCLING ---
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# --- DATA & STATE (The "Non-Portable" stuff) ---
+instance/
+*.db
+.env
+
+# --- LOCAL ENVIRONMENTS ---
+.venv/
+venv/
+env/
+
+# --- ARCHIVE ---S

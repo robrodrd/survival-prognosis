@@ -1,0 +1,7 @@
+reflex>=0.6.0
+lifelines
+pandas
+numpy
+plotly
+sqlmodel==0.0.14
+pydantic==1.10.15

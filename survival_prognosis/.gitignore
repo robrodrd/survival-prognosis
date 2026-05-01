@@ -1,0 +1,15 @@
+.env
+.venv/
+venv/
+ENV/
+bin/
+lib/
+share/
+__pycache__/
+*.py[cod]
+*$py.class
+*.db
+*.sqlite3
+old/
+instance/
+.vscode/
