@@ -1,36 +1,25 @@
-# --- 1. Use a lightweight Linux OS (Python 3.12 on Linux)
 FROM python:3.11-slim
 
-# Install system dependencies for Reflex (Node.js and unzip)
 RUN apt-get update && apt-get install -y \
-    curl \
-    unzip \
-    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
+    curl unzip && \
+    curl -fsSL https://deb.nodejsource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
-# --- 2. CREATE WORKING DIRECTORY inside the CONTAINER ---
 WORKDIR /app
-
-# --- 3. Copy requirements (dependencies) and install them inside the container
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# --- 4. COPY APPLICATION CODE ---
-# Copy everything from your local folder into the /app folder
 COPY . .
 
-# Initialize Reflex (compiles the frontend)
+# Explicitly install the production servers to avoid "binary not found"
+RUN pip install --no-cache-dir -r requirements.txt uvicorn gunicorn
+
+# Initialize and Export
 RUN reflex init
+ENV API_URL=https://survival-prognosis-service-100651041936.us-central1.run.app
+RUN reflex export --frontend-only --no-zip
 
-# Expose ports for the Frontend (3000) and Backend (8000)
-EXPOSE 3000 8000
+# START COMMAND
+EXPOSE 8080
 
-# --- 6. ENVIRONMENT VARIABLES ---
-# Ensure Python output is sent straight to terminal (good for debugging)
-ENV PYTHONUNBUFFERED=1
-
-# --- 7. START COMMAND ---
-# This is the "Entry Point" that runs when you start the container
-# Run the app in production mode
-CMD ["reflex", "run", "--env", "prod"]
+# We use 'reflex run' but point it to the internal module.
+# This ensures Reflex sets up the static file mounting for the frontend.
+CMD ["reflex", "run", "--env", "prod", "--backend-host", "0.0.0.0", "--backend-port", "8080", "--loglevel", "debug"]

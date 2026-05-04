@@ -1,4 +1,6 @@
 import reflex as rx
+from fastapi.staticfiles import StaticFiles
+import os
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -428,5 +430,6 @@ def index():
         )
     )
 
+# 1. Initialize the App with your theme
 app = rx.App(theme=rx.theme(accent_color="blue", radius="large"))
-app.add_page(index)
+app.add_page(index, route="/")
