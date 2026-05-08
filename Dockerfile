@@ -10,7 +10,8 @@ WORKDIR /app
 COPY . .
 
 # Explicitly install the production servers to avoid "binary not found"
-RUN pip install --no-cache-dir -r requirements.txt uvicorn gunicorn
+# RUN pip install --no-cache-dir -r requirements.txt uvicorn gunicorn (uvicorn & gunicorn are in requirements.txt)
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Initialize and Export
 RUN reflex init

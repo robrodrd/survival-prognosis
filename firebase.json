@@ -1,0 +1,26 @@
+{
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/_event/**",
+        "run": {
+          "serviceId": "survival-prognosis-service",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "survival-prognosis-service",
+          "region": "us-central1"
+        }
+      }
+    ]
+  }
+}

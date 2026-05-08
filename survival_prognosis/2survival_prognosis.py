@@ -1,4 +1,7 @@
+from typing import List, Union
 import reflex as rx
+from fastapi.staticfiles import StaticFiles
+import os
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -27,11 +30,63 @@ BREAST_MAP = {
 }
 
 class State(rx.State):
-    # Core Application State
-    selected_dataset: str = "Breast Cancer (GBSG2)"
-    selected_model: str = "Kaplan-Meier Survival"
-    months_list: list[float] = [36.0]
+
+    # These MUST be defined here at the top level
+    selected_dataset: str = ""  
+    selected_model: str = ""
+    active_controls: list[str] = []
+
+    # This matches the value of the radio button selection
+    data_selection: str = "Default"
+
+    # Results states (Initialize as None or empty to hide them)
+    results_data: dict = {}
+    metadata: str = "Select a dataset and model to begin analysis."
+
+    def run_analysis(self):
+        # Trigger the alert if "Own CSV File" is selected
+        if self.selected_dataset == "Own CSV File":
+            return rx.window_alert("Future Release Functionality")
+        
+        # Otherwise, proceed to calculation logic
+        self.calculate_prognosis()
+
+    def reset_state(self):
+        self.selected_dataset = ""
+        self.selected_model = ""
+        self.results_data = {}
+        self.cohort_note = "Select a dataset and model to begin analysis."
+        
+    def update_dataset(self, value: str):
+        self.selected_dataset = value
+        # IMMEDIATELY WIPE PREVIOUS RESULTS
+        self.results_data = {}
+        self.survival_probability_text = ""
+        self.median_survival_text = "---"
+        self.p_value_text = ""
+        self.survival_fig = go.Figure()
+        self.cph_fig = go.Figure()
+        self.cohort_note = "Selection changed. Please click RUN ANALYSIS to see updated results."
+
+    def update_model(self, value: str):
+        self.selected_model = value
+        # IMMEDIATELY WIPE PREVIOUS RESULTS
+        self.results_data = {}
+        self.survival_probability_text = ""
+        self.median_survival_text = "---"
+        self.p_value_text = ""
+        self.survival_fig = go.Figure()
+        self.cph_fig = go.Figure()
+        self.cohort_note = "Selection changed. Please click RUN ANALYSIS to see updated results."
+
+    slider_max_val: int = 90
+    months_list: list[float] = [0.0, 36.0]
     
+    # --- CSV Upload State ---
+    uploaded_data: pd.DataFrame = pd.DataFrame()
+    csv_columns: list[str] = []
+    is_uploading: bool = False
+
     # --- KM Isolated State ---
     active_controls: list[str] = []
     age_threshold: int = 50
@@ -46,18 +101,21 @@ class State(rx.State):
     ci_text: str = "---"
 
     # --- CPH Isolated State ---
-    cph_active_covariates: list[str] = ["age", "sex", "ph.ecog"]
+    cph_active_covariates: list[str] = [] 
     cph_fig: go.Figure = go.Figure()
     cph_survival_prob: str = "---"
     cph_log_rank_p: str = ""
     cph_table_data: list[list[str]] = []
     cph_table_cols: list[str] = ["Variable", "HR", "95% CI Lower", "95% CI Upper", "p-value"]
     
-    cohort_note: str = "Select a dataset and run analysis."
+    cohort_note: str = "Select a dataset and model to begin analysis."
 
     # --- Setters & Handlers ---
-    def set_selected_model(self, val: str): self.selected_model = val
-    def set_months_list(self, val: list[float]): self.months_list = val
+    def set_selected_model(self, val: str): 
+        self.update_model(val)
+        
+    def set_months_list(self, val: list[float]): 
+        self.months_list = val
     
     def set_age_threshold(self, v): 
         try: self.age_threshold = int(v) if v else 50
@@ -72,12 +130,27 @@ class State(rx.State):
         except: self.node_threshold = 3
 
     def update_cph_covariates(self, covariate: str, checked: bool):
+        # Wipe results if covariates change
+        self.results_data = {}
+        self.cohort_note = "Covariates updated. Re-run analysis."
         if checked:
             if covariate not in self.cph_active_covariates: self.cph_active_covariates.append(covariate)
         else:
             if covariate in self.cph_active_covariates: self.cph_active_covariates.remove(covariate)
 
+    async def handle_upload(self, files: list[rx.UploadFile]):
+        for file in files:
+            upload_data = await file.read()
+            import io
+            df = pd.read_csv(io.BytesIO(upload_data))
+            self.uploaded_data = df
+            self.csv_columns = df.columns.tolist()
+            self.cph_active_covariates = []
+            self.cohort_note = f"Uploaded {file.filename}: {len(df)} records detected. Click RUN ANALYSIS."
+
     def handle_km_selection(self, item: str, checked: bool):
+        self.results_data = {} # Wipe stale results on param change
+        self.cohort_note = "Parameters changed. Re-run analysis."
         if checked:
             is_ecog_item = "ECOG" in item
             existing_ecog = [i for i in self.active_controls if "ECOG" in i]
@@ -100,53 +173,88 @@ class State(rx.State):
                 self.active_controls.remove(item)
 
     def set_selected_dataset(self, val: str):
-        self.selected_dataset = val
-        self.active_controls = []
+        self.update_dataset(val)
+        self.active_controls = list()
         self.p_value_text = ""
         self.ci_text = "---"
         max_limit = 45 if "Lung" in val else 90
-        if self.months_list[0] > max_limit:
-            self.months_list = [float(max_limit)]
+        if self.months_list[1] > max_limit:
+            self.months_list = [0.0, float(max_limit)]
 
     @rx.var
-    def current_months(self) -> int: return int(self.months_list[0])
+    def start_month(self) -> int: return int(self.months_list[0])
 
     @rx.var
-    def slider_max(self) -> int: return 45 if "Lung" in self.selected_dataset else 90
-
-    # --- NEW VARS FOR UI STACKING ---
+    def end_month(self) -> int: return int(self.months_list[1])
+        
     @rx.var
+    def max_months_limit(self) -> int:
+        if "Lung" in self.selected_dataset:
+            return 45
+        return 90
+    
+    @rx.var 
     def survival_prob_lines(self) -> list[str]:
+        if not self.survival_probability_text:
+            return []
         return self.survival_probability_text.split(" | ")
 
     @rx.var
     def median_survival_lines(self) -> list[str]:
+        if not self.median_survival_text:
+            return []
         return self.median_survival_text.split(" | ")
 
     def calculate_prognosis(self):
+        if self.selected_dataset == "" or self.selected_model == "":
+            self.cohort_note = "Selection Required: Please choose a Dataset and Model."
+            return
+
         try:
-            days_input = float(self.current_months * 30.44)
+            days_input = float(self.end_month * 30.44)
+
             if self.selected_model == "Kaplan-Meier Survival":
                 if "Breast" in self.selected_dataset:
                     df = load_gbsg2(); df['event'] = df['cens'].astype(int)
+                    self.cohort_note = "Source: GBSG2 Breast Cancer Study. Created: 1994. 686 patients with node-positive cancer."
                     self._run_km_engine(df, BREAST_MAP, days_input, 90, "GBSG2 Breast", [0, 12, 24, 36, 48, 60, 72, 84])
-                    self.cohort_note = "Study: German Breast Cancer Study Group (GBSG2, 1994). Parameters: 686 patients with primary node-positive breast cancer."
-                else:
+                elif "Lung" in self.selected_dataset:
                     df = load_lung().dropna(subset=['time', 'status', 'sex', 'ph.ecog'])
                     df['event'] = (df['status'] - 1).astype(int)
+                    self.cohort_note = "Source: NCCTG Lung Cancer Data (Loprinzi et al.). Created: 1994. Advanced lung cancer study."
                     self._run_km_engine(df, LUNG_MAP, days_input, 45, "NCCTG Lung", [0, 10, 20, 30, 40])
-                    self.cohort_note = "Study: NCCTG Lung Cancer Data (Loprinzi et al., 1994). Parameters: Advanced lung cancer survival vs. ECOG performance."
-            else:
+                else: # CSV Path
+                    df = self.uploaded_data.copy()
+                    time_col = next((c for c in df.columns if c.lower() == 'time'), 'time')
+                    event_col = next((c for c in df.columns if c.lower() in ['event', 'status', 'cens']), 'event')
+                    df['time'] = df[time_col]
+                    df['event'] = df[event_col]
+                    self.cohort_note = "Source: User-uploaded CSV metadata not available. Analyzing custom cohort."
+                    self._run_km_engine(df, {}, days_input, int(df['time'].max()/30.44), "Custom CSV", [0, 12, 24, 36])
+
+            else: # CPH Mode
+                if not self.cph_active_covariates:
+                    self.cohort_note = "Please select at least one covariate for Cox analysis."
+                    return
+
                 if self.selected_dataset == "Lung (NCCTG)":
                     df_cph = load_lung().dropna(subset=['time', 'status'] + self.cph_active_covariates)
                     df_cph['event'] = (df_cph['status'] - 1).astype(int)
+                    self.cohort_note = "CPH Model | NCCTG Lung Data. Analyzing influence of selected covariates."
                     self._run_cph_engine_isolated(df_cph, days_input, "NCCTG Lung")
-                else:
+                elif self.selected_dataset == "Breast Cancer (GBSG2)":
                     df_cph = load_gbsg2().dropna()
                     df_cph['event'] = df_cph['cens'].astype(int)
+                    self.cohort_note = "CPH Model | GBSG2 Breast Data. Analyzing influence of selected covariates."
                     self._run_cph_engine_isolated(df_cph, days_input, "GBSG2 Breast")
+                else: # CSV Path
+                    df_cph = self.uploaded_data.dropna(subset=['time', 'event'] + self.cph_active_covariates)
+                    self.cohort_note = "CPH Model | Custom CSV Data."
+                    self._run_cph_engine_isolated(df_cph, days_input, "Custom CSV")
+                
+                self.results_data = {"status": "complete"}
         except Exception as e:
-            print(f"Main Engine Error: {e}")
+            self.cohort_note = f"Error: {str(e)}"
 
     def _run_cph_engine_isolated(self, df, days_input, ds_name):
         try:
@@ -211,7 +319,7 @@ class State(rx.State):
                         self._add_km_trace(fig, kmf, colors[i], fill_colors[i])
                         y_val = float(kmf.predict(days_input))
                         fig.add_trace(go.Scatter(
-                            x=[float(self.current_months)], y=[y_val], mode='markers',
+                            x=[float(self.end_month)], y=[y_val], mode='markers',
                             name=f"Point {lbl}", marker=dict(color='#ef4444', size=10, line=dict(color='white', width=2)),
                             showlegend=False, hoverinfo="skip"
                         ))
@@ -222,7 +330,7 @@ class State(rx.State):
                 kmf = KaplanMeierFitter().fit(df['time'], df['event'], label="Baseline")
                 self._add_km_trace(fig, kmf, "#475569", "rgba(71, 85, 105, 0.1)")
                 y_val = kmf.predict(days_input)
-                fig.add_trace(go.Scatter(x=[self.current_months], y=[y_val], mode='markers', marker=dict(color='#ef4444', size=10, line=dict(color='white', width=2)), showlegend=False))
+                fig.add_trace(go.Scatter(x=[self.end_month], y=[y_val], mode='markers', marker=dict(color='#ef4444', size=10, line=dict(color='white', width=2)), showlegend=False))
                 fitters.append(kmf)
                 self.at_risk_data = [["Baseline"] + [str(self._get_at_risk(kmf, d)) for d in interval_days]]
 
@@ -234,7 +342,7 @@ class State(rx.State):
                         kmf = KaplanMeierFitter().fit(sub['time'], sub['event'], label=ctrl)
                         self._add_km_trace(fig, kmf, colors[i], fill_colors[i])
                         y_val = kmf.predict(days_input)
-                        fig.add_trace(go.Scatter(x=[self.current_months], y=[y_val], mode='markers', marker=dict(color='#ef4444', size=10, line=dict(color='white', width=2)), showlegend=False))
+                        fig.add_trace(go.Scatter(x=[self.end_month], y=[y_val], mode='markers', marker=dict(color='#ef4444', size=10, line=dict(color='white', width=2)), showlegend=False))
                         fitters.append(kmf); dataframes.append(sub)
                         self.at_risk_data.append([ctrl] + [str(self._get_at_risk(kmf, d)) for d in interval_days])
 
@@ -261,7 +369,8 @@ class State(rx.State):
                 self.p_value_text = ""
 
             fig.update_layout(template="simple_white", height=430, margin=dict(t=50, b=10, l=10, r=10), legend=dict(orientation="h", y=-0.25))
-            fig.update_yaxes(range=[0, 1.05]); fig.update_xaxes(range=[0, max_x])
+            fig.update_yaxes(range=[0, 1.05])
+            fig.update_xaxes(range=[self.start_month, max_x])
             self.survival_fig = fig
 
         except Exception as e:
@@ -297,15 +406,19 @@ def km_sidebar_controls():
                         rx.hstack(control_item("ECOG 2"), control_item("ECOG 3"), spacing="3"), 
                         align_items="start"
                     ), 
-                    rx.vstack(
-                        rx.text("Hormone Therapy:", font_size="0.7em"),
-                        rx.hstack(control_item("Hormone Therapy: Yes"), control_item("Hormone Therapy: No"), spacing="4"),
-                        rx.divider(margin_y="0.5em"),
-                        rx.hstack(control_item("Post-menopausal"), control_item("Pre-menopausal"), spacing="4")
+                    rx.cond(
+                        State.selected_dataset == "Breast Cancer (GBSG2)",
+                        rx.vstack(
+                            rx.text("Hormone Therapy:", font_size="0.7em"),
+                            rx.hstack(control_item("Hormone Therapy: Yes"), control_item("Hormone Therapy: No"), spacing="4"),
+                            rx.divider(margin_y="0.5em"),
+                            rx.hstack(control_item("Post-menopausal"), control_item("Pre-menopausal"), spacing="4")
+                        ),
+                        rx.text("Selection required or custom CSV loaded.", font_size="0.7em", color="gray")
                     )
                 ),
                 rx.divider(margin_y="0.5em"),
-                control_item("Age Split"), 
+                rx.cond(State.selected_dataset != "Own CSV File", control_item("Age Split")), 
                 rx.cond(State.active_controls.contains("Age Split"), rx.input(on_blur=State.set_age_threshold, placeholder=f"Age ({State.age_threshold})", size="1")), 
                 align_items="start"
             )
@@ -333,15 +446,71 @@ def settings_sidebar():
         rx.vstack(
             rx.text("MODEL SETTINGS", font_weight="bold", font_size="0.9em"),
             rx.accordion.root(
-                rx.accordion.item(header="Data Selection", value="ds", content=rx.radio_group(["Lung (NCCTG)", "Breast Cancer (GBSG2)", "Own CSV File"], value=State.selected_dataset, on_change=State.set_selected_dataset, size="1")),
-                rx.accordion.item(header="Model Selection", value="ms", content=rx.radio_group(["Kaplan-Meier Survival", "Cox Proportional Hazards"], value=State.selected_model, on_change=State.set_selected_model, size="1")),
-                rx.cond(State.selected_model == "Kaplan-Meier Survival", km_sidebar_controls(), rx.accordion.item(header="CPH Multivariate Covariates", value="cph_cov", content=rx.vstack(rx.foreach(["age", "sex", "ph.ecog", "ph.karno", "wt.loss"], lambda cov: rx.checkbox(cov, on_change=lambda c: State.update_cph_covariates(cov, c), checked=State.cph_active_covariates.contains(cov), size="1")), spacing="2", align_items="start"))),
+                rx.accordion.item(
+                    header="Data Selection", 
+                    value="ds", 
+                    content=rx.radio_group(
+                        ["Lung (NCCTG)", "Breast Cancer (GBSG2)", "Own CSV File"], 
+                        on_change=State.update_dataset, 
+                        size="1"
+                    )
+                ),
+                rx.accordion.item(
+                    header="Model Selection", 
+                    value="ms", 
+                    content=rx.radio_group(
+                        ["Kaplan-Meier Survival", "Cox Proportional Hazards"], 
+                        value=State.selected_model,
+                        on_change=State.update_model, 
+                        size="1"
+                    )
+                ),
+                rx.cond(
+                    State.selected_model == "Kaplan-Meier Survival", 
+                    km_sidebar_controls(), 
+                    rx.accordion.item(
+                        header="CPH Multivariate Covariates", 
+                        value="cph_cov", 
+                        content=rx.vstack(
+                            rx.cond(
+                                State.selected_dataset == "Own CSV File",
+                                rx.foreach(State.csv_columns, lambda cov: rx.checkbox(cov, on_change=lambda c: State.update_cph_covariates(cov, c), checked=State.cph_active_covariates.contains(cov), size="1")),
+                                rx.foreach(["age", "sex", "ph.ecog", "ph.karno", "wt.loss"], lambda cov: rx.checkbox(cov, on_change=lambda c: State.update_cph_covariates(cov, c), checked=State.cph_active_covariates.contains(cov), size="1"))
+                            ),
+                            spacing="2", align_items="start"
+                        )
+                    )
+                ),
                 type="multiple", variant="ghost", width="100%",
             ),
+            
+            rx.cond(
+                State.selected_dataset == "Own CSV File",
+                rx.vstack(
+                    rx.upload(
+                        rx.text("Drop CSV here or click"),
+                        id="upload_csv",
+                        border="1px dashed gray",
+                        padding="1em",
+                        width="100%"
+                    ),
+                    rx.button("Process File", on_click=State.handle_upload(rx.upload_files(upload_id="upload_csv")), size="1", width="100%"),
+                    spacing="2", width="100%"
+                )
+            ),
+
             rx.divider(),
-            rx.text(f"Month Selection: {State.current_months}", font_size="0.8em", font_weight="bold"),
-            rx.slider(value=State.months_list, on_change=State.set_months_list, max=State.slider_max, width="100%"),
-            rx.button("RUN ANALYSIS", on_click=State.calculate_prognosis, color_scheme="blue", width="100%"),
+            rx.text(f"Cohort Timeline: {State.start_month} to {State.end_month} Mo", font_size="0.8em", font_weight="bold"),
+            
+            rx.slider(
+                value=State.months_list,
+                on_change=State.set_months_list,
+                min=0,
+                max=State.max_months_limit, 
+                width="100%",
+            ),
+
+            rx.button("RUN ANALYSIS", on_click=State.run_analysis, color_scheme="blue", width="100%"),
             spacing="3", align_items="start",
         ),
         width="100%"
@@ -352,11 +521,13 @@ def index():
         rx.vstack(
             rx.heading("Clinical Analytics Platform", size="8", margin_bottom="0.5em", width="100%", text_align="center"),
             rx.flex(
-                # Left Column
                 rx.vstack(
                     rx.card(
                         rx.vstack(
-                            rx.text(f"{State.selected_model} Prognosis ({State.selected_dataset})", font_weight="bold", font_size="1.1em", color=rx.color("slate", 11), width="100%", text_align="center", margin_top="1.5em"),
+                            rx.text(
+                                rx.cond(State.selected_model == "", "Analysis Results (Please make a selection)", f"{State.selected_model} Prognosis ({State.selected_dataset})"),
+                                font_weight="bold", font_size="1.1em", color=rx.color("slate", 11), width="100%", text_align="center", margin_top="1.5em"
+                            ),
                             rx.cond(State.selected_model == "Kaplan-Meier Survival", rx.plotly(data=State.survival_fig, width="100%"), rx.plotly(data=State.cph_fig, width="100%")),
                             rx.cond(State.selected_model == "Kaplan-Meier Survival", 
                                 rx.table.root(
@@ -374,17 +545,45 @@ def index():
                         ), 
                         width="100%"
                     ),
-                    # --- FIXED RESULTS CARD ---
+                    
+                    rx.card(
+                        rx.hstack(
+                            rx.icon("lightbulb", size=24, color=rx.color("amber", 9)),
+                            rx.vstack(
+                                rx.text("CDS RECOMMENDATION", font_size="0.75em", font_weight="bold", color=rx.color("amber", 11), letter_spacing="0.05em"),
+                                rx.text(
+                                    rx.cond(
+                                        State.selected_model == "",
+                                        "Select parameters and perform analysis to generate clinical decision support insights.",
+                                        "Based on current survival probabilities and hazard ratios, consider escalated monitoring for high-risk subgroups. Review institutional protocols for adjuvant therapy alignment."
+                                    ),
+                                    font_size="0.85em", 
+                                    color=rx.color("slate", 11),
+                                    line_height="1.4"
+                                ),
+                                align_items="start",
+                                spacing="1"
+                            ),
+                            align_items="center",
+                            spacing="3",
+                            padding="0.5em"
+                        ),
+                        bg=rx.color("amber", 2),
+                        border=f"1px solid {rx.color('amber', 5)}",
+                        width="100%"
+                    ),
+
                     rx.card(
                         rx.hstack(
                             rx.vstack(
                                 rx.text("SURVIVAL PROB.", font_size="0.7em", color_scheme="blue"), 
-                                rx.cond(State.selected_model == "Kaplan-Meier Survival",
+                                rx.cond(
+                                    State.survival_probability_text == "", 
+                                    rx.heading("Awaiting...", size="5"),
                                     rx.vstack(
                                         rx.foreach(State.survival_prob_lines, lambda line: rx.text(line, font_size="0.8em", font_weight="bold")),
                                         spacing="1", align_items="center"
-                                    ),
-                                    rx.heading(State.cph_survival_prob, size="5")
+                                    )
                                 ),
                                 align_items="center", flex="1"
                             ), 
@@ -396,7 +595,7 @@ def index():
                                         rx.foreach(State.median_survival_lines, lambda line: rx.text(line, font_size="0.8em", font_weight="bold")),
                                         spacing="1", align_items="center"
                                     ),
-                                    rx.heading("N/A (CPH)", size="5")
+                                    rx.heading("N/A", size="5")
                                 ),
                                 align_items="center", flex="1"
                             ), 
@@ -413,15 +612,14 @@ def index():
                     ),
                     flex="2", spacing="4"
                 ),
-                
-                # Right Column
                 rx.box(settings_sidebar(), flex="1"),
                 width="100%", spacing="6"
             ),
             rx.text(State.cohort_note, font_size="0.7em", color="gray", padding="1em"),
-            width="100%", max_width="1250px", padding="2em"
-        )
+        ),
+        width="100%",
+        padding="2em"
     )
 
-app = rx.App(theme=rx.theme(accent_color="blue", radius="large"))
+app = rx.App()
 app.add_page(index)
