@@ -1,0 +1,12 @@
+[
+  {
+    "name": "keep-latest-five",
+    "action": {
+      "type": "Keep"
+    },
+    "condition": {
+      "tagState": "any",
+      "count": 5
+    }
+  }
+]
