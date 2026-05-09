@@ -640,5 +640,5 @@ def index():
     )
 
 app = rx.App()
-# app.add_page(index)
+# --- app.add_page(index) no longer needed
 app.add_page(index, route="/")

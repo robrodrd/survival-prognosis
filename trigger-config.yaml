@@ -1,0 +1,24 @@
+build:
+  images:
+  - gcr.io/healthcare-analytics-v1/github.com/robrodrd/survival-prognosis:$COMMIT_SHA
+  options:
+    logging: CLOUD_LOGGING_ONLY
+  steps:
+  - args:
+    - build
+    - -t
+    - gcr.io/healthcare-analytics-v1/github.com/robrodrd/survival-prognosis:$COMMIT_SHA
+    - -f
+    - Dockerfile
+    - .
+    name: gcr.io/cloud-builders/docker
+createTime: '2026-05-08T18:20:39.498843725Z'
+github:
+  name: survival-prognosis
+  owner: robrodrd
+  push:
+    branch: ^main$
+id: 404b057c-cc78-42c0-a0de-eb58c528c07a
+name: survival-prognosis-deploy-trigger
+resourceName: projects/healthcare-analytics-v1/locations/global/triggers/404b057c-cc78-42c0-a0de-eb58c528c07a
+serviceAccount: projects/healthcare-analytics-v1/serviceAccounts/100651041936-compute@developer.gserviceaccount.com
