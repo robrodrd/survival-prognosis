@@ -22,8 +22,10 @@ RUN reflex init
 # -- This is the Unique Hash URL. It is assigned to the Service when it was deployed for the first time. This is the official one and should be used
 # ENV API_URL=https://survival-prognosis-service-43ggbiilka-uc.a.run.app
 
-# Needs to be changed to the Firebase Assigned User friendl URL:
+# 1. Point to the public face of the app
 ENV API_URL=https://healthcare-analytics-v1.web.app
+
+# 2. Tell the backend to TRUST the Firebase domain (Crucial for WebSockets)
 ENV CORS_ALLOWED_ORIGINS='["https://healthcare-analytics-v1.web.app"]'
 
 RUN reflex export --frontend-only --no-zip
