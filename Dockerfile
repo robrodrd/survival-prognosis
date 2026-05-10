@@ -15,11 +15,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Initialize and Export
 RUN reflex init
-# ENV API_URL=https://survival-prognosis-service-100651041936.us-central1.run.app   
+
 # -- This url is created in the GCR Aritfact Registry: its: Sevice Name.Project Number.Region
+# ENV API_URL=https://survival-prognosis-service-100651041936.us-central1.run.app   
 
 # -- This is the Unique Hash URL. It is assigned to the Service when it was deployed for the first time. This is the official one and should be used
-ENV API_URL=https://survival-prognosis-service-43ggbiilka-uc.a.run.app
+# ENV API_URL=https://survival-prognosis-service-43ggbiilka-uc.a.run.app
+
+# Needs to be changed to the Firebase Assigned User friendl URL:
+ENV API_URL=https://healthcare-analytics-v1.web.app
 
 RUN reflex export --frontend-only --no-zip
 
