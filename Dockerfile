@@ -24,6 +24,7 @@ RUN reflex init
 
 # Needs to be changed to the Firebase Assigned User friendl URL:
 ENV API_URL=https://healthcare-analytics-v1.web.app
+ENV CORS_ALLOWED_ORIGINS='["https://healthcare-analytics-v1.web.app"]'
 
 RUN reflex export --frontend-only --no-zip
 
