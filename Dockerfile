@@ -28,6 +28,9 @@ ENV API_URL=https://healthcare-analytics-v1.web.app
 # 2. Tell the backend to TRUST the Firebase domain (Crucial for WebSockets)
 ENV CORS_ALLOWED_ORIGINS='["https://healthcare-analytics-v1.web.app"]'
 
+# Add this to bypass the Firebase WebSocket block
+ENV REFLEX_PROTOCOL_HTTP=true
+
 RUN reflex export --frontend-only --no-zip
 
 # START COMMAND
