@@ -14,7 +14,8 @@ COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Initialize and Export
-RUN reflex init
+# RUN reflex init
+RUN reflex init --non-interactive
 
 # -- This url is created in the GCR Aritfact Registry: its: Sevice Name.Project Number.Region
 # ENV API_URL=https://survival-prognosis-service-100651041936.us-central1.run.app   
