@@ -10,11 +10,9 @@ WORKDIR /app
 COPY . .
 
 # Explicitly install the production servers to avoid "binary not found"
-# RUN pip install --no-cache-dir -r requirements.txt uvicorn gunicorn (uvicorn & gunicorn are in requirements.txt)
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Initialize and Export
-# RUN reflex init
 RUN reflex init
 
 # -- This url is created in the GCR Aritfact Registry: its: Sevice Name.Project Number.Region
@@ -29,7 +27,6 @@ ENV API_URL=https://clinicalprognosis.app
 # 2. Tell the backend to TRUST the new domain (Crucial for WebSockets)
 ENV CORS_ALLOWED_ORIGINS='["https://clinicalprognosis.app"]'
 
-# Add this to bypass the Firebase WebSocket block
 ENV REFLEX_PROTOCOL_HTTP=true
 
 RUN reflex export --frontend-only --no-zip
