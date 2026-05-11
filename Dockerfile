@@ -23,11 +23,11 @@ RUN reflex init --non-interactive
 # -- This is the Unique Hash URL. It is assigned to the Service when it was deployed for the first time. This is the official one and should be used
 # ENV API_URL=https://survival-prognosis-service-43ggbiilka-uc.a.run.app
 
-# 1. Point to the public face of the app
-ENV API_URL=https://healthcare-analytics-v1.web.app
+# 1. Point to your new professional domain
+ENV API_URL=https://clinicalprognosis.app
 
-# 2. Tell the backend to TRUST the Firebase domain (Crucial for WebSockets)
-ENV CORS_ALLOWED_ORIGINS='["https://healthcare-analytics-v1.web.app"]'
+# 2. Tell the backend to TRUST the new domain (Crucial for WebSockets)
+ENV CORS_ALLOWED_ORIGINS='["https://clinicalprognosis.app"]'
 
 # Add this to bypass the Firebase WebSocket block
 ENV REFLEX_PROTOCOL_HTTP=true
