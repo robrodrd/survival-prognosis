@@ -1,17 +1,20 @@
 import reflex as rx
+from reflex_base.plugins.sitemap import SitemapPlugin
+from reflex_components_radix.plugin import RadixThemesPlugin
+from reflex_components_radix.themes.base import Theme
 
 config = rx.Config(
     app_name="survival_prognosis",
-    # This tells the frontend where the backend API lives
-    api_url="https://clinicalprognosis.app", 
     plugins=[
-        rx.plugins.SitemapPlugin(),
-        rx.plugins.RadixThemesPlugin(
-            theme=rx.theme(
-                appearance="light", 
-                has_background=True, 
-                accent_color="blue"
+        SitemapPlugin(),
+        RadixThemesPlugin(
+            theme=Theme.create(
+                appearance="light",
+                accent_color="blue",
+                gray_color="slate",
+                radius="medium",
+                scaling="100%"
             )
-        ),
-    ],
+        )
+    ]
 )

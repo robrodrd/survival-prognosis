@@ -24,4 +24,5 @@ instance/
 venv/
 env/
 
-# --- ARCHIVE ---S
+# --- ARCHIVE ---
+backup/
