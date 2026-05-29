@@ -632,7 +632,8 @@ def settings_sidebar():
             rx.cond(
                 State.selected_dataset == "Own CSV File",
                 rx.vstack(
-                    # --- UPLOAD DROPDOWN ---
+                    # --- UPLOAD DROPDOWN --- #
+
                     rx.upload(
                         rx.hstack(
                             rx.icon("upload", size=14, color=rx.color("blue", 9)), 
@@ -655,7 +656,12 @@ def settings_sidebar():
                         padding="0",                       
                         height="28px",                     
                         cursor="pointer",                  
-                        width="100%"
+                        width="100%",
+                        style={
+                            "_hover": {
+                                "background_color": rx.color("blue", 3), 
+                            }
+                        }
                     ),
                     
                     # --- MATCHING PROCESS BUTTON ---
@@ -927,5 +933,18 @@ def index():
         width="100%",
     )
 
-app = rx.App(stylesheets=["style.css"])
+app = rx.App(
+    stylesheets=["style.css"],
+    style={
+        ".rt-AccordionTrigger": {
+            "border_radius": "var(--radius-2) !important",
+        },
+        ".AccordionTrigger": {
+            "border_radius": "var(--radius-2) !important",
+        },
+        "button[class*='AccordionTrigger']": {
+            "border_radius": "var(--radius-2) !important",
+        }
+    }
+)
 app.add_page(index, title="Clinical Prognosis Platform (CPP)", route="/")

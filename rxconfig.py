@@ -6,6 +6,8 @@ from reflex_components_radix.themes.base import Theme
 config = rx.Config(
     app_name="survival_prognosis",
     admin_dash=False,
+    show_built_with_reflex=False,  # Added: Turns off branding for v0.7.0+
+    show_reflex_badge=False,       # Added: Alternate flag configuration used in some versions
     plugins=[
         SitemapPlugin(),
         RadixThemesPlugin(
