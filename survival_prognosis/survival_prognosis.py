@@ -9,6 +9,7 @@ from lifelines import KaplanMeierFitter, CoxPHFitter
 from lifelines.datasets import load_lung, load_gbsg2
 from lifelines.statistics import logrank_test
 import logging
+import asyncio
 
 # --- Mapping Configuration ---
 LUNG_MAP = {
@@ -42,6 +43,26 @@ def make_initial_figure():
     return fig
 
 class State(rx.State):
+    # Unified localized sidebar notification system
+    toast_duration: int = 1500  # Duration in milliseconds (1.5 seconds)
+    sidebar_msg: str = ""
+    sidebar_variant: str = "success"  # Can be "success", "info", or "error"
+    show_sidebar_msg: bool = False
+    _msg_id: int = 0  # Prevents race conditions with fast consecutive messages
+
+    def clear_sidebar_notification(self):
+        self.show_sidebar_notification = False
+
+    def _show_custom_toast(self, message: str, variant: str = "success"):
+        """Intercepts all notification types and routes them into the inline sidebar menu hierarchy."""
+        self.sidebar_msg = message
+        self.sidebar_variant = variant
+        self.show_sidebar_msg = True
+        self._msg_id += 1 
+        
+        # Fires off the background task thread to auto-dismiss after 1500ms
+        return State.clear_sidebar_msg_after_delay
+
     debug_status: str = "Awaiting click..."
     show_dialog: bool = False
     
@@ -49,18 +70,7 @@ class State(rx.State):
     results_ready: bool = False
 
     def notify_future_release(self):
-        return rx.toast(
-                "Scheduled for Future Release", 
-                position="top-right", 
-                close_button=True,
-                duration=1000,
-                style={
-                    "background-color": "#eff6ff",
-                    "color": "#1d4ed8",
-                    "border": "1px solid #3b82f6",
-                    "font-weight": "bold",
-                }
-            )
+        return self._show_custom_toast("Scheduled for Future Release", "info")
     
     def toggle_dialog(self):
         self.show_dialog = not self.show_dialog
@@ -70,7 +80,7 @@ class State(rx.State):
 
     active_controls: list[str] = rx.field(default_factory=list)
     data_selection: str = "Default"
-    metadata_info: str = "Select a dataset and model to begin analysis." 
+    metadata_info: str = "" 
 
     # --- New File Tracking States ---
     uploaded_filename: str = ""
@@ -78,21 +88,11 @@ class State(rx.State):
 
     def run_analysis(self):         
         self.debug_status = ""
+        self.clear_sidebar_msg() # Clean the notification slate before running validation
         
         if not self.selected_model or not self.selected_dataset:
             self.cohort_note = ""
-            return rx.toast(
-                "Please select Model and Dataset", 
-                position="top-right", 
-                close_button=True,
-                duration=1000,
-                style={
-                    "background-color": "#fff5f5",
-                    "color": "#c53030",
-                    "border": "1px solid #feb2b2",
-                    "font-weight": "bold",
-                }
-            )
+            return self._show_custom_toast("Please select Model and Dataset", "error")
 
         if self.selected_dataset == "Own CSV File":
             self.show_dialog = False
@@ -103,18 +103,7 @@ class State(rx.State):
             else:
                 self.metadata_info = "Source: No file Uploaded. Custom cohort analysis."
 
-            return rx.toast(
-                "Scheduled for Future Release", 
-                position="top-right", 
-                close_button=True,
-                duration=1000,
-                style={
-                    "background-color": "#eff6ff",
-                    "color": "#1d4ed8",
-                    "border": "1px solid #3b82f6",
-                    "font-weight": "bold",
-                }
-            )
+            return self._show_custom_toast("Scheduled for Future Release", "info")
 
         self.show_dialog = False
         return self.calculate_prognosis()
@@ -125,7 +114,7 @@ class State(rx.State):
         self.results_ready = False
         self.uploaded_filename = ""
         self.uploaded_row_count = 0
-        self.metadata_info = "Select a dataset and model to begin analysis."
+        self.metadata_info = ""
         self.cohort_note = ""
         
     def update_dataset(self, value: str):
@@ -153,18 +142,7 @@ class State(rx.State):
             else:
                 self.metadata_info = "Source: No file uploaded yet. Custom cohort analysis."
 
-        return rx.toast(
-            f"{value} Selected.", 
-            position="top-right", 
-            close_button=True,
-            duration=1000,
-            style={
-                "background-color": "#f0fdf4",
-                "color": "#166534",
-                "border": "1px solid #bbf7d0",
-                "font-weight": "bold",
-            }
-        )
+        return self._show_custom_toast(f"{value} Selected.", "success")
 
     def update_model(self, value: str):
         self.selected_model = value
@@ -177,18 +155,7 @@ class State(rx.State):
         self.cph_table_data = [["-", "-", "-", "-", "-"]]
         self.cohort_note = ""
 
-        return rx.toast(
-            f"{value} Selected.", 
-            position="top-right", 
-            close_button=True,
-            duration=1000,
-            style={
-                "background-color": "#f0fdf4",
-                "color": "#166534",
-                "border": "1px solid #bbf7d0",
-                "font-weight": "bold",
-            }
-        )
+        return self._show_custom_toast(f"{value} Selected.", "success")
 
     slider_max_val: int = 90
     months_list: list[float] = rx.field(default_factory=lambda: [0.0, 36.0])
@@ -235,18 +202,7 @@ class State(rx.State):
             if covariate in self.cph_active_covariates: self.cph_active_covariates.remove(covariate)
         self.cohort_note = ""
 
-        return rx.toast(
-            "Covariates updated.", 
-            position="top-right", 
-            close_button=True,
-            duration=1000,
-            style={
-                "background-color": "#f0fdf4",
-                "color": "#166534",
-                "border": "1px solid #bbf7d0",
-                "font-weight": "bold",
-            }
-        )
+        return self._show_custom_toast("Covariates updated.", "success")
 
     def handle_upload(self, files: list[rx.UploadFile]):
         for file in files:
@@ -264,22 +220,11 @@ class State(rx.State):
             # Explicitly update the display text right now
             self.metadata_info = f"Source: {self.uploaded_filename} ({self.uploaded_row_count} rows). Custom cohort analysis."
             
-            return rx.toast(
-                f"Uploaded {file.filename}.", 
-                position="top-right", 
-                close_button=True,
-                duration=1000,
-                style={
-                    "background-color": "#f0fdf4",
-                    "color": "#166534",
-                    "border": "1px solid #bbf7d0",
-                    "font-weight": "bold",
-                }
-            )
+            return self._show_custom_toast(f"Uploaded {file.filename}.", "success")
 
     def handle_km_selection(self, item: str, checked: bool):
         self.results_ready = False 
-        self.cohort_note = "Parameters changed."
+        self.cohort_note = ""
         if checked:
             is_ecog_item = "ECOG" in item
             existing_ecog = [i for i in self.active_controls if "ECOG" in i]
@@ -302,7 +247,40 @@ class State(rx.State):
         if self.months_list[1] > max_limit:
             self.months_list = [0.0, float(max_limit)]
         return self.update_dataset(val)
+    
+    def clear_sidebar_msg(self):
+        self.show_sidebar_msg = False
 
+    @rx.var
+    def sidebar_bg_color(self) -> str:
+        return {"info": "#eff6ff", "success": "#f0fdf4", "error": "#fff5f5"}.get(self.sidebar_variant, "#f0fdf4")
+
+    @rx.var
+    def sidebar_text_color(self) -> str:
+        return {"info": "#1d4ed8", "success": "#166534", "error": "#c53030"}.get(self.sidebar_variant, "#166534")
+
+    @rx.var
+    def sidebar_border_color(self) -> str:
+        return {"info": "#3b82f6", "success": "#bbf7d0", "error": "#feb2b2"}.get(self.sidebar_variant, "#bbf7d0")
+
+    @rx.var
+    def sidebar_icon(self) -> str:
+        return {"info": "info", "success": "check-circle", "error": "triangle-alert"}.get(self.sidebar_variant, "check-circle")
+    
+    @rx.event(background=True)
+    async def clear_sidebar_msg_after_delay(self):
+        # 1. Capture the exact message ID that triggered this specific task instance
+        async with self:
+            current_id = self._msg_id
+        
+        # 2. Sleep for the duration specified (ms converted to seconds)
+        await asyncio.sleep(float(self.toast_duration) / 1000.0)
+        
+        # 3. Re-acquire state lock and hide only if a newer notification hasn't overwritten it
+        async with self:
+            if self._msg_id == current_id:
+                self.show_sidebar_msg = False
+    
     @rx.var
     def start_month(self) -> int: return int(self.months_list[0])
 
@@ -323,18 +301,7 @@ class State(rx.State):
 
     def calculate_prognosis(self):      
         if self.selected_dataset == "" or self.selected_model == "":
-            return rx.toast(
-                "Please select Dataset and Model", 
-                position="top-right", 
-                close_button=True,
-                duration=1000,
-                style={
-                    "background-color": "#fff5f5",
-                    "color": "#c53030",
-                    "border": "1px solid #feb2b2",
-                    "font-weight": "bold",
-                }
-            )
+            return self._show_custom_toast("Please select Dataset and Model", "error")
 
         try:
             days_input = float(self.end_month * 30.44)
@@ -358,19 +325,7 @@ class State(rx.State):
 
             else: 
                 if not self.cph_active_covariates:
-                    #return rx.toast("Select at least one Covariate.", position="top-right", close_button=True)
-                    return rx.toast(
-                        "Select at least one Covariate", 
-                        position="top-right", 
-                        close_button=True,
-                        duration=1000,
-                        style={
-                            "background-color": "#fff5f5",
-                            "color": "#c53030",
-                            "border": "1px solid #feb2b2",
-                            "font-weight": "bold",
-                        }
-                    )
+                    return self._show_custom_toast("Select at least one Covariate", "error")
 
                 if "Lung" in self.selected_dataset:
                     df_cph = load_lung().dropna(subset=['time', 'status'] + self.cph_active_covariates).copy()
@@ -389,37 +344,15 @@ class State(rx.State):
                     df_cph = self.uploaded_data.dropna(subset=['time', 'event'] + self.cph_active_covariates)
                     self._run_cph_engine_isolated(df_cph, days_input, "Custom CSV")
 
-            self.results_ready = True  # Activates presentation state cleanly
+            self.results_ready = True  
             self.cohort_note = ""
 
-            return rx.toast(
-                "Analysis Complete", 
-                position="top-right", 
-                close_button=True,
-                duration=1000,
-                style={
-                    "background-color": "#f0fdf4",
-                    "color": "#166534",
-                    "border": "1px solid #bbf7d0",
-                    "font-weight": "bold",
-                }
-            )
+            return self._show_custom_toast("Analysis Complete", "success")
 
         except Exception as e:
             self.results_ready = False
             self.cohort_note = f"Analysis Error: {str(e)}"
-            return rx.toast(
-                f"Analysis Error: {str(e)}", 
-                position="top-right", 
-                close_button=True,
-                duration=1000,
-                style={
-                    "background-color": "#fff5f5",
-                    "color": "#c53030",
-                    "border": "1px solid #feb2b2",
-                    "font-weight": "bold",
-                }
-            )
+            return self._show_custom_toast(f"Analysis Error: {str(e)}", "error")
 
     def _run_cph_engine_isolated(self, df, days_input, ds_name):
         cph = CoxPHFitter().fit(df[['time', 'event'] + self.cph_active_covariates], 'time', 'event')
@@ -459,9 +392,9 @@ class State(rx.State):
             autosize=True,
             modebar={
                 "orientation": "h",
-                "bgcolor": "rgba(0,0,0,0)", # Fully transparent RGBA string
-                "color": "#475569",       # Muted slate gray
-                "activecolor": "#1e293b"  # Flared dark gray
+                "bgcolor": "rgba(0,0,0,0)", 
+                "color": "#475569",       
+                "activecolor": "#1e293b"  
             }
         )
         self.cph_fig = fig
@@ -556,12 +489,16 @@ class State(rx.State):
         # --- Renders KM Results to Display --- #
         fig.update_layout(
             title={"text": f"<b>{self.selected_model} Prognosis ({dataset_name})</b>", "x": 0.5, "y": 0.92, "xanchor": "center", "font": {"size": 14}},
-            template="simple_white", height=420, margin=dict(t=70, b=50, l=40, r=20), legend=dict(orientation="h", y=-0.2),
+            template="simple_white", 
+            height=420, 
+            autosize=True, # Resets to fluid internal calculation
+            margin=dict(t=70, b=50, l=40, r=20), 
+            legend=dict(orientation="h", y=-0.2),
             modebar={
                 "orientation": "h",
-                "bgcolor": "rgba(0,0,0,0)", # Fully transparent RGBA string
-                "color": "#475569",       # Muted slate gray
-                "activecolor": "#1e293b"  # Flared dark gray
+                "bgcolor": "rgba(0,0,0,0)", 
+                "color": "#475569",       
+                "activecolor": "#1e293b"  
             }
         )
         fig.update_yaxes(range=[0, 1.05])
@@ -634,6 +571,36 @@ def km_sidebar_controls():
 def settings_sidebar():
     return rx.card(
         rx.vstack(
+            # Unified Localized Notification Box for Success, Info, and Errors
+            rx.cond(
+                State.show_sidebar_msg,
+                rx.box(
+                    rx.hstack(
+                        rx.hstack(
+                            rx.icon(tag=State.sidebar_icon, size=14),
+                            rx.text(State.sidebar_msg, font_size="0.8em", font_weight="bold"),
+                            spacing="2",
+                        ),
+                        rx.icon(
+                            tag="x", 
+                            size=14, 
+                            cursor="pointer", 
+                            on_click=State.clear_sidebar_msg
+                        ),
+                        justify="between",
+                        align_items="center",
+                        width="100%",
+                    ),
+                    background_color=State.sidebar_bg_color,
+                    color=State.sidebar_text_color,
+                    border=f"1px solid {State.sidebar_border_color}",
+                    padding="10px 14px",
+                    border_radius="var(--radius-2)",
+                    width="100%",
+                    margin_bottom="0.5em"
+                )
+            ),          
+
             rx.text("MODEL SETTINGS", font_weight="bold", font_size="0.9em"),
             rx.accordion.root(
                 rx.accordion.item(
@@ -661,21 +628,69 @@ def settings_sidebar():
                 ),
                 type="multiple", variant="ghost", width="100%",
             ),
+            
             rx.cond(
                 State.selected_dataset == "Own CSV File",
                 rx.vstack(
+                    # --- UPLOAD DROPDOWN ---
                     rx.upload(
-                        rx.hstack(rx.icon("upload", size=16, color=rx.color("blue", 9)), rx.text("Upload target data file", font_size="0.8em"), spacing="2", justify_content="center", width="100%"),
-                        id="upload_csv", border=f"1px solid {rx.color('blue', 8)}", background_color=rx.color("blue", 2), padding="0.75em", width="100%"
+                        rx.hstack(
+                            rx.icon("upload", size=14, color=rx.color("blue", 9)), 
+                            # --- UPDATED: Added matching font color ---
+                            rx.text(
+                                "Upload Data File", 
+                                font_size="0.8em", 
+                                color=rx.color("blue", 9)  # Matches Process File text color
+                            ), 
+                            spacing="2", 
+                            justify_content="center", 
+                            align_items="center", 
+                            height="100%",
+                            width="100%"
+                        ),
+                        id="upload_csv", 
+                        border=f"1px solid {rx.color('blue', 8)}", 
+                        background_color=rx.color("blue", 2), 
+                        border_radius="var(--radius-2)",  
+                        padding="0",                       
+                        height="28px",                     
+                        cursor="pointer",                  
+                        width="100%"
                     ),
-                    rx.button("Process File", on_click=State.handle_upload(rx.upload_files(upload_id="upload_csv")), size="1", variant="surface", width="100%"),
-                    spacing="2", width="100%"
+                    
+                    # --- MATCHING PROCESS BUTTON ---
+                    rx.button(
+                        "Process File", 
+                        on_click=State.handle_upload(rx.upload_files(upload_id="upload_csv")), 
+                        border=f"1px solid {rx.color('blue', 8)}", 
+                        background_color=rx.color("blue", 2), 
+                        color=rx.color("blue", 9),
+                        border_radius="var(--radius-2)",
+                        height="28px",                     
+                        cursor="pointer",                  
+                        width="100%",
+                        style={
+                            "_hover": {
+                                "background_color": rx.color("blue", 3), 
+                            }
+                        }
+                    ),
+                    spacing="2", 
+                    width="100%"
                 )
             ),
+
             rx.divider(),
             rx.text(f"Cohort Timeline: {State.start_month} to {State.end_month} Mo", font_size="0.8em", font_weight="bold"),
             rx.slider(value=State.months_list, on_change=State.set_months_list, min=0, max=State.max_months_limit, width="100%"),
-            rx.button("RUN ANALYSIS", on_click=State.run_analysis, color_scheme="blue", width="100%"),
+            
+            rx.button(
+                "RUN ANALYSIS", 
+                on_click=State.run_analysis, 
+                color_scheme="blue",
+                cursor="pointer",
+                width="100%"
+            ),
             spacing="3", align_items="start",
         ),
         width="100%"
@@ -687,13 +702,17 @@ def index():
         "displaylogo": False,
         "displayModeBar": "always",
         "modeBarButtonsToRemove": [
-            "zoom2d",               # <-- This explicitly removes the main zoom magnifying glass
-            "select2d",             # Removes box select
-            "lasso2d",              # Removes lasso select
-            "zoomIn2d",             # Removes zoom-in plus
-            "zoomOut2d",            # Removes zoom-out minus
+            "zoom2d", 
+            "pan2d", 
+            "select2d", 
+            "lasso2d", 
+            "zoomIn2d", 
+            "zoomOut2d", 
+            "autoScale2d", 
+            "resetScale2d", 
             "hoverClosestCartesian", 
-            "hoverCompareCartesian"
+            "hoverCompareCartesian", 
+            "toggleSpikelines"
         ]
     }
     
@@ -704,58 +723,65 @@ def index():
             rx.flex(
                 # LEFT COLUMN CONTAINER (Plots, Tables, Metrics)
                 rx.vstack(
-                    
                     rx.card(
-                        # FIX: Control entire result visualization box through State.results_ready switch  
                         rx.cond(
                             State.results_ready,
                             rx.vstack(
                                 rx.box(
-                                    # --- REPOSITIONED & FLARED: Custom Download Button ---
-                                    rx.button(
-                                        rx.icon(tag="download", size=15), 
-                                        on_click=State.notify_future_release,
-                                        position="absolute", 
-                                        top="2px", 
-                                        right="62px",  # Moves it left to leave room for the camera icon
-                                        z_index="50", 
-                                        size="1", 
-                                        variant="ghost",
-                                        color_scheme="gray",
-                                        style={
-                                            "opacity": "0.3",  # Muted by default to match Plotly's style
-                                            "color": "#475569",
-                                            "transition": "all 0.2s ease-in-out",
-                                            "_hover": {
-                                                "opacity": "1.0",      # Flares up on hover
-                                                "color": "#1e293b",    # Darkens slightly on flare
-                                                "background": "transparent"
+                                    # --- ADDED HOVER TOOLTIP ---
+                                    # Wrapped the download button in rx.tooltip.
+                                    # delay_duration=200 makes it snap up quickly like Plotly's icons.
+                                    rx.tooltip(
+                                        rx.button(
+                                            rx.icon(tag="download", size=15), 
+                                            on_click=State.notify_future_release,
+                                            position="absolute", 
+                                            top="4px", 
+                                            right="52px",  
+                                            z_index="50", 
+                                            size="1", 
+                                            variant="ghost",
+                                            color_scheme="gray",
+                                            style={
+                                                "opacity": "0.3",
+                                                "color": "#475569",
+                                                "transition": "all 0.2s ease-in-out",
+                                                "_hover": {
+                                                    "opacity": "1.0",
+                                                    "color": "#1e293b",
+                                                    "background": "transparent"
+                                                }
                                             }
-                                        }
+                                        ),
+                                        content="Download Report",
+                                        delay_duration=200, # Snappy feel in milliseconds
                                     ),
                                     rx.box(
                                         rx.plotly(
                                             data=State.survival_fig, 
-                                            config=plotly_config  # <-- Pass the config object here
+                                            config=plotly_config,
+                                            width="100%" # Forces canvas layout compliance
                                         ),
                                         display=rx.cond(State.selected_model == "Kaplan-Meier Survival", "block", "none"),
                                         width="100%",
-                                        overflow="hidden"
+                                        # REMOVED overflow="hidden" to prevent clipping the modebar symbols
                                     ),
                                     rx.box(
                                         rx.plotly(
                                             data=State.cph_fig, 
-                                            config=plotly_config  # <-- Pass the config object here
+                                            config=plotly_config,
+                                            width="100%" # Forces canvas layout compliance
                                         ),
                                         display=rx.cond(State.selected_model == "Cox Proportional Hazards", "block", "none"),
                                         width="100%",
-                                        overflow="hidden"
+                                        # REMOVED overflow="hidden" to prevent clipping the modebar symbols
                                     ),
                                     width="100%",
                                     min_height="420px",
                                     max_width="620px",
                                     position="relative",
                                 ),
+                                    
                                 rx.box(
                                     rx.cond(
                                         State.selected_model == "Cox Proportional Hazards", 
@@ -777,11 +803,8 @@ def index():
                                 width="100%"
                             ),
                             
-                            # FIX: Rock-solid, non-collapsible default placeholder when state is uncalculated or cleared
-                            # FALLBACK: Transparent text container with an integrated medical pulse graphic
                             rx.center(
                                 rx.vstack(
-                                    # Horizontal running pulse graphic
                                     rx.box(
                                         rx.box(class_name="medical-pulse-bar pulse-b1"),
                                         rx.box(class_name="medical-pulse-bar pulse-b2"),
@@ -804,7 +827,7 @@ def index():
                                         color=rx.color("slate", 11),
                                         font_size="0.85em",
                                         text_align="center",
-                                        style={"textWrap": "balance"} # <-- Prevents single orphan words dynamically
+                                        style={"textWrap": "balance"} 
                                     ),
                                     spacing="2",
                                     align_items="center",
@@ -826,12 +849,11 @@ def index():
                                 padding="2em",
                                 position="relative"
                             )
-
                         ),
-                        
                         width="100%",
                         padding="16px"
-                    ),
+                    ),  
+                    
                     rx.card(
                         rx.hstack(
                             rx.vstack(
@@ -874,27 +896,36 @@ def index():
                         background_color=rx.color("amber", 2),
                         border_radius="var(--radius-3)"
                     ),
-                    width="640px",
-                    spacing="4"
-                ),
+                    width="100%",
+                    max_width="660px", 
+                    spacing="4",
+                    flex="1 1 0%", 
+                ),  
                 
                 # RIGHT COLUMN CONTAINER (Sidebar panel)
                 rx.box(
                     settings_sidebar(), 
-                    width="320px"
+                    width="320px", 
+                    flex_shrink="0",
                 ),
-                
-                width="1000px", 
-                spacing="6",
-                justify_content="space-between"
+
+                # Locked side-by-side display settings
+                width="100%", 
+                gap="24px",
+                direction="row",
+                justify="center",
+                align_items="start",
             ),
 
             rx.text(State.metadata_info, font_size="0.8em", color="black"),    
             rx.text(State.cohort_note, font_size="0.8em", color="red"),
-            width="1000px", padding="2em"   
-        ),
+
+            width="100%",
+            max_width="1200px",  
+            padding="2em"
+        ),  
+        width="100%",
     )
 
-# app = rx.App()
 app = rx.App(stylesheets=["style.css"])
 app.add_page(index, title="Clinical Prognosis Platform (CPP)", route="/")

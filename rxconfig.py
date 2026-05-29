@@ -5,6 +5,7 @@ from reflex_components_radix.themes.base import Theme
 
 config = rx.Config(
     app_name="survival_prognosis",
+    admin_dash=False,
     plugins=[
         SitemapPlugin(),
         RadixThemesPlugin(
