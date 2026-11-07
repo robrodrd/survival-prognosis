@@ -103,3 +103,66 @@
         opacity: 0.9;
     }
 }
+
+/* ==========================================================================
+   6. SUPPRESS THE REFLEX BRANDING BADGE WATERMARK
+   ========================================================================== */
+.__reflex-badge, 
+.reflex-badge, 
+#reflex-badge,
+div[class*="reflex-badge"],
+div[class*="built-with-reflex"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* ==========================================================================
+   7. STICKY DATA VIEW TABLE CONFIGURATION (BULLETPROOF HOISTED CONTEXT)
+   ========================================================================== */
+.rt-AccordionTrigger,
+.AccordionTrigger,
+button[class*='AccordionTrigger'] {
+    border-radius: var(--radius-2) !important;
+}
+
+/* 1. Establish this container as the single source of truth for all scrolling */
+.preview-table-container {
+    max-height: 320px !important;  /* Strict compact height boundary */
+    overflow: auto !important;      /* Manages both vertical and horizontal scrollbars here */
+    position: relative !important;
+}
+
+/* 2. Force all internal Radix table structural layers to be completely visible 
+      so they cannot interrupt or steal the sticky positioning context */
+.preview-table-container .rt-TableRoot,
+.preview-table-container .rt-TableRootTable,
+.preview-table-container table {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+}
+
+/* 3. Pin the structural header container elements firmly to the top plane */
+.preview-table-container thead,
+.preview-table-container .rt-TableHeader {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 100 !important;
+}
+
+/* 4. Lock individual header cells to top: 0 with a solid background 
+      to ensure data rows slide cleanly underneath without text bleed-through */
+.preview-table-container :where(.rt-TableColumnHeaderCell, th) {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 100 !important;
+    background-color: #f8fafc !important; /* Solid, opaque background matching your theme */
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.15) !important; /* Crisp bottom border line */
+}
+
+/* 5. Keep body cells clean and properly layered beneath the header plane */
+.preview-table-container :where(.rt-TableCell, td) {
+    background-color: transparent !important;
+}

@@ -6,8 +6,6 @@
     box-shadow: none !important;
     border: none !important;
     padding: 0px !important;
-    
-    /* Perfect position alignment with the plot layout and your download arrow */
     top: 0px !important;          
     right: 18px !important;         
 }
@@ -43,25 +41,27 @@
 /* ==========================================================================
    5. CLINICAL SKELETON CANVAS WITH INTEGRATED ANIMATION
    ========================================================================== */
-/* Main analytical workspace layout backing box */
+/* Main background layout block */
 .clinical-blueprint-canvas {
     position: relative;
     background-color: #fafbfc !important;
 }
 
-/* --- ANIMATED MEDICAL PULSE GRAPHIC STRUCT --- */
+/* The pulse container forcing a strict horizontal side-by-side array */
 .medical-pulse-loader {
     position: relative;
-    width: 90px;
+    width: 100px;
     height: 35px;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
+    margin-left: auto;
+    margin-right: auto;
     display: flex !important;
-    flex-direction: row !important; /* Enforces absolute horizontal side-by-side alignment */
-    align-items: flex-end;
-    justify-content: space-between;
+    flex-direction: row !important;
+    align-items: flex-end !important;
+    justify-content: space-between !important;
 }
 
-/* The horizontal baseline track */
+/* The horizontal baseline track beneath the bars */
 .medical-pulse-loader::before {
     content: '';
     position: absolute;
@@ -76,21 +76,22 @@
 /* Individual vertical metric bars */
 .medical-pulse-bar {
     display: block !important;
-    width: 6px !important; /* Thicker columns for pristine high-density rendering */
-    background-color: #3b82f6; 
-    border-radius: 2px 2px 0 0;
-    z-index: 2;
+    width: 6px !important;
+    background-color: #3b82f6 !important; 
+    border-radius: 2px 2px 0 0 !important;
+    z-index: 2 !important;
     opacity: 0.75;
-    animation: pulseGrow 1.2s ease-in-out infinite alternate;
+    transform-origin: bottom !important;
+    animation: pulseGrow 1.2s ease-in-out infinite alternate !important;
 }
 
-/* Staggered wave layout track delays to build a continuous running waveform */
-.pulse-b1 { height: 25%; animation-delay: 0.1s; }
-.pulse-b2 { height: 50%; animation-delay: 0.3s; }
-.pulse-b3 { height: 95%; animation-delay: 0.6s; } /* Core systolic peak */
-.pulse-b4 { height: 40%; animation-delay: 0.2s; }
-.pulse-b5 { height: 65%; animation-delay: 0.4s; }
-.pulse-b6 { height: 25%; animation-delay: 0.7s; }
+/* Precise step delays for smooth running wave motion animation */
+.pulse-b1 { height: 25% !important; animation-delay: 0.1s !important; }
+.pulse-b2 { height: 50% !important; animation-delay: 0.3s !important; }
+.pulse-b3 { height: 95% !important; animation-delay: 0.6s !important; } /* Core peak */
+.pulse-b4 { height: 40% !important; animation-delay: 0.2s !important; }
+.pulse-b5 { height: 65% !important; animation-delay: 0.4s !important; }
+.pulse-b6 { height: 25% !important; animation-delay: 0.7s !important; }
 
 @keyframes pulseGrow {
     0% {
