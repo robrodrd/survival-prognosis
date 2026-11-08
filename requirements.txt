@@ -13,3 +13,4 @@ uvicorn
 gunicorn
 openpyxl
 psycopg2-binary
+weasyprint
