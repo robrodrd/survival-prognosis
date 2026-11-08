@@ -14,3 +14,4 @@ gunicorn
 openpyxl
 psycopg2-binary
 weasyprint
+resend
