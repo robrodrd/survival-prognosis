@@ -1,10 +1,20 @@
 FROM python:3.11-slim
 
+# Install system dependencies including Node.js (for Reflex frontend) 
+# and WeasyPrint native libraries (Pango, Cairo, GObject)
 RUN apt-get update && apt-get install -y \
-    curl unzip && \
+    curl \
+    unzip \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libharfbuzz-subset0 \
+    libgobject-2.0-0 \
+    libcairo2 \
+    libffi-dev \
+    shared-mime-info && \
     curl -fsSL https://deb.nodejsource.com/setup_18.x | bash - && \
     apt-get install -y nodejs && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/*    
 
 WORKDIR /app
 COPY . .
@@ -15,13 +25,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Initialize and Export
 RUN reflex init
 
-# -- This url is created in the GCR Aritfact Registry: its: Sevice Name.Project Number.Region
-# ENV API_URL=https://survival-prognosis-service-100651041936.us-central1.run.app   
-
-# -- This is the Unique Hash URL. It is assigned to the Service when it was deployed for the first time. This is the official one and should be used
-# ENV API_URL=https://survival-prognosis-service-43ggbiilka-uc.a.run.app
-
-# 1. Point to your new professional domain
+# 1. Point to your professional domain
 ENV API_URL=https://clinicalprognosis.app
 
 # 2. Tell the backend to TRUST the new domain (Crucial for WebSockets)
