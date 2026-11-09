@@ -13,4 +13,4 @@ formulaic==1.2.1
 patsy==1.0.3
 python-dotenv==1.2.2
 fastapi==0.136.1
-
+kaleido==0.2.1
