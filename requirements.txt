@@ -12,3 +12,5 @@ scipy==1.17.1
 formulaic==1.2.1
 patsy==1.0.3
 python-dotenv==1.2.2
+fastapi==0.136.1
+
