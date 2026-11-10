@@ -21,23 +21,34 @@
 #                                                                                                                                          #
 #                                                         :  DB-Instance : cpp-production-db                                               #
 #                                                         :  DB_USER     : postgres (automatically set as default when created)            #
-#                                                         :  DB_PASS     : FyIdiot&00                                                      #
+#                                                         :  DB_PASSWORD : FyIdiot&00                                                      #
 #                                                         :  DB_NAME     : postgres (automatically set as default when created)            #
 #                                                         :  DB_HOST     : /cloudsql/healthcare-analytics-v1:us-central1:cpp-production-db #
+#                                                                                                                                          #
+# To write to database on local machine start prox :  ./cloud-sql-proxy healthcare-analytics-v1:us-central1:cpp-production-db --port=5432  #
 # **************************************************************************************************************************************** #                  
 
 # **************************************************************************************************************************************** #
 # Application url:          https://healthcare-analytics-v1.web.app/                                                                       #
 #                           https://survival-prognosis-service-100651041936.us-central1.run.app/                                           #
 #                           https://clinicalprognosis.app                                                                                  #
-# Custom Domain Name        clinicalprognosis.app       --> url to get to the app                                                          #                       #
+# Custom Domain Name        clinicalprognosis.app       --> url to get to the app                                                          #                       
 # **************************************************************************************************************************************** #
 
 # **************************************************************************************************************************************** #
 # To push code to GitHub:   --> 1.: check if network connection and credentials are in place :  $ git remote -v                            #      
 #                           --> 2.: test connectivity and authentication                     :  $ git fetch origin                         #
 #                           --> 3.: check status if local data is up to date with GitHub     :  $ git status                               #
-#                           --> 4.: 
+#                           --> 4.:              :$ git add requirements.txt rxconfig.py assets/ survival_prognosis/survival_prognosis.py  #
+#                           --> 5.:              :$ git commit -m "Add PostgreSQL database integration and update application assets"      #
+#                           --> 6.: final push   :$ git push origin main                                                                   #
+#                                                           usr name           : robrodrd                                                  #
+#                                                                                                                                          #
+# **************************************************************************************************************************************** #
+
+# **************************************************************************************************************************************** #
+# Docker USR/PWD: 
+
 
 
 import asyncio
@@ -1964,14 +1975,23 @@ The multivariable prognostic model demonstrates robust discrimination, calibrati
         yield
 
         try:
-            # Connect to the production PostgreSQL database via Cloud SQL Auth Proxy
-            conn = psycopg2.connect(
-                dbname=os.environ.get("DB_NAME", "postgres"),
-                user=os.environ.get("DB_USER", "postgres"),
-                password=os.environ.get("DB_PASSWORD", ""),
-                host="127.0.0.1",
-                port="5432"
-            )
+            # Dynamically read host from environment variables (defaults to local proxy)
+            db_host = os.environ.get("DB_HOST", "127.0.0.1")
+            
+            connect_args = {
+                "dbname": os.environ.get("DB_NAME", "postgres"),
+                "user": os.environ.get("DB_USER", "postgres"),
+                "password": os.environ.get("DB_PASSWORD", ""),
+                "host": db_host,
+            }
+            
+            # Only include the port if connecting via TCP (local proxy). 
+            # Unix socket paths in Cloud Run do not use TCP ports.
+            if not db_host.startswith("/"):
+                connect_args["port"] = os.environ.get("DB_PORT", "5432")
+
+            # Connect to PostgreSQL using the appropriate local or production socket path
+            conn = psycopg2.connect(**connect_args)
             cur = conn.cursor()
             
             insert_query = """
@@ -1996,6 +2016,7 @@ The multivariable prognostic model demonstrates robust discrimination, calibrati
             
             # Wait for 2 seconds so the user can read the confirmation message
             await asyncio.sleep(2)
+
             
             # Automatically close modal and clear text
             self.show_feedback_modal = False
