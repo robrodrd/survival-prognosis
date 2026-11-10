@@ -41,15 +41,11 @@
 #                           --> 3.: check status if local data is up to date with GitHub     :  $ git status                               #
 #                           --> 4.:              :$ git add requirements.txt rxconfig.py assets/ survival_prognosis/survival_prognosis.py  #
 #                           --> 5.:              :$ git commit -m "Add PostgreSQL database integration and update application assets"      #
-#                           --> 6.: final push   :$ git push origin main                                                                   #
-#                                                           usr name           : robrodrd                                                  #
-#                                                                                                                                          #
+#                           --> 6.: final push   :$ git push origin main                                                                   #                                                                                                                           #
 # **************************************************************************************************************************************** #
 
 # **************************************************************************************************************************************** #
 # Docker USR/PWD: 
-
-
 
 import asyncio
 from typing import List, Union, Optional, Any
@@ -1975,8 +1971,11 @@ The multivariable prognostic model demonstrates robust discrimination, calibrati
         yield
 
         try:
-            # Dynamically read host from environment variables (defaults to local proxy)
-            db_host = os.environ.get("DB_HOST", "127.0.0.1")
+            # If K_SERVICE is not present, we are running locally -> force 127.0.0.1
+            if "K_SERVICE" not in os.environ:
+                db_host = "127.0.0.1"
+            else:
+                db_host = os.environ.get("DB_HOST", "127.0.0.1")
             
             connect_args = {
                 "dbname": os.environ.get("DB_NAME", "postgres"),
@@ -2016,7 +2015,6 @@ The multivariable prognostic model demonstrates robust discrimination, calibrati
             
             # Wait for 2 seconds so the user can read the confirmation message
             await asyncio.sleep(2)
-
             
             # Automatically close modal and clear text
             self.show_feedback_modal = False
