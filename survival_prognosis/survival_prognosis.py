@@ -13,19 +13,18 @@
 # **************************************************************************************************************************************** #
 # To start project in the morning: change into Project Folder    :   cd ~/projects/survival-prognosis                                      #
 #                                  start Virtual Environment     :   source .venv/bin/activate                                             # 
-#                                  start GCP PostgreSQL Database : ./cloud-sql-proxy healthcare-analytics-v1:us-central1:cpp-production-db #
 #                                                                                                                                          #
-# Created 3 Tables in cpp-production-db Instance                 :   Feedback Table         : User Feedback                                #
-#                                                                :   Subscription Table     : Subcription Fees                             #
-#                                                                :   Audit Table            : PHI/HIPAA Compliance                         #
+# Created 3 Tables in cpp-production-db Instance    :   Feedback Table         : User Feedback                                             #
+#                                                   :   Subscription Table     : Subcription Fees                                          #
+#                                                   :   Audit Table            : PHI/HIPAA Compliance                                      #
 #                                                                                                                                          #
-#                                                         :  DB-Instance : cpp-production-db                                               #
-#                                                         :  DB_USER     : postgres (automatically set as default when created)            #
-#                                                         :  DB_PASSWORD : FyIdiot&00                                                      #
-#                                                         :  DB_NAME     : postgres (automatically set as default when created)            #
-#                                                         :  DB_HOST     : /cloudsql/healthcare-analytics-v1:us-central1:cpp-production-db #
+#                                                   :  DB-Instance : cpp-production-db                                                     #
+#                                                   :  DB_USER     : postgres (automatically set as default when created)                  #
+#                                                   :  DB_PASSWORD : FyIdiot&00                                                            #
+#                                                   :  DB_NAME     : postgres (automatically set as default when created)                  #
+#                                                   :  DB_HOST     : /cloudsql/healthcare-analytics-v1:us-central1:cpp-production-db       #
 #                                                                                                                                          #
-# To write to database on local machine start prox :  ./cloud-sql-proxy healthcare-analytics-v1:us-central1:cpp-production-db --port=5432  #
+# To write to database locally start proxy          :  ./cloud-sql-proxy healthcare-analytics-v1:us-central1:cpp-production-db --port=5432 #
 # **************************************************************************************************************************************** #                  
 
 # **************************************************************************************************************************************** #
@@ -45,7 +44,11 @@
 # **************************************************************************************************************************************** #
 
 # **************************************************************************************************************************************** #
-# Docker USR/PWD: 
+# GitHub USR/PWD/email  : robrodrd/FyIdiot&00/robrodrd@gmail.com                                                                           #
+# Stripe USR/PWD        : robrodrd@gmail.com/mlai00mlai00 ?                                                                                #
+# WSL USR/PWD           : test1/mlai00                                                                                                     #
+# Docker USR/PWD/email  : robrodrd/FyIdiot&00/robrodrd@gmail.com                                                                           #
+# **************************************************************************************************************************************** #
 
 import asyncio
 from typing import List, Union, Optional, Any
@@ -3749,7 +3752,7 @@ The multivariable prognostic model demonstrates robust discrimination, calibrati
         # --- CPH Tables Blocks for PDF --- # 
         if is_full_cohort:
             cph_section_block = f'''
-            <div class="section-block" style="page-break-before: always;">
+            <div class="section-block" style="margin-top: 30px; page-break-inside: avoid;">
                 <h2 style="font-size: 11pt; color: #1e293b; font-weight: bold; margin-bottom: 12px; border-bottom: 1.5px solid #1e293b; padding-bottom: 4px;">Multivariate Cox Proportional Hazards & Univariate Assessment</h2>
                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 8.0pt; background-color: #ffffff; border-top: 1.5px solid #1e293b; border-bottom: 1.5px solid #1e293b;">
                     <thead>
@@ -3777,7 +3780,7 @@ The multivariable prognostic model demonstrates robust discrimination, calibrati
             '''
         else:
             cph_section_block = f'''
-            <div class="section-block" style="page-break-before: always;">
+            <div class="section-block" style="margin-top: 30px; page-break-inside: avoid;">
                 <h2 style="font-size: 11pt; color: #1e293b; font-weight: bold; margin-bottom: 12px; border-bottom: 1.5px solid #1e293b; padding-bottom: 4px;">Cox Proportional Hazards Analysis & Hazard Ratios</h2>
                 
                 <h3 style="font-size: 9pt; color: #1e293b; margin-top: 15px; margin-bottom: 2px; font-weight: bold;">
@@ -3844,6 +3847,8 @@ The multivariable prognostic model demonstrates robust discrimination, calibrati
             <title>Publication-Grade Kaplan-Meier Survival Analysis Report</title>
             <style>
                 *, *::before, *::after {{ box-sizing: border-box; }}
+                thead {{ display: table-header-group; }}
+
                 @page {{
                     size: A4;
                     margin: 15mm 15mm 18mm 15mm;
@@ -3868,6 +3873,10 @@ The multivariable prognostic model demonstrates robust discrimination, calibrati
                     margin: 0;
                     padding: 0;
                     background-color: #ffffff;
+                }}
+                /* Target table rows safely inside structured classes */
+                .data-table tr, table tr {{
+                    page-break-inside: avoid;
                 }}
                 .header-banner {{
                     border-bottom: 2px solid #1e293b;
@@ -3993,7 +4002,7 @@ The multivariable prognostic model demonstrates robust discrimination, calibrati
             </div>
             
             <!-- SECTION 2: KAPLAN-MEIER SURVIVAL SUMMARY & ANALYSIS TABLE -->
-            <div class="section-block" style="page-break-before: always;">
+            <div class="section-block" style="margin-top: 30px; page-break-inside: avoid;">
                 <h2>Kaplan-Meier Survival Summary & Analysis</h2>
                 {km_table_html}
                 {chart_html_block}
@@ -7100,21 +7109,39 @@ def report_customization_panel():
             # Download PDF Button wrapped in a relative container
             rx.vstack(
                 rx.button(
-                    rx.icon(tag="download", size=12), 
-                    "Download Report",
+                    rx.hstack(
+                        rx.icon(tag="download", size=11),
+                        rx.text("Download Report"),
+                        spacing="1",
+                        justify_content="center",
+                        align_items="center",
+                        height="22",
+                    ),
                     on_click=rx.cond(
                         State.results_ready,
                         State.download_active_report, # Points directly to the scalable dispatcher
                         State.handle_disabled_pdf_click,
                     ),
-                    disabled=False, 
                     size="1",
-                    bg=rx.cond(State.results_ready, rx.color("blue", 8), rx.color("slate", 6)),      
-                    color="white",              
-                    font_weight="bold",
                     cursor=rx.cond(State.results_ready, "pointer", "not-allowed"),
-                    _hover={"bg": rx.cond(State.results_ready, rx.color("blue", 9), rx.color("slate", 6))},
-                    width="100%",
+                    height="22px",
+                    padding="0 8px",
+                    style={
+                        "background_color": rx.cond(State.results_ready, rx.color("blue", 2), rx.color("slate", 4)),
+                        "border": rx.cond(
+                            State.results_ready, 
+                            f"1px solid {rx.color('blue', 5)}", 
+                            f"1px solid {rx.color('slate', 6)}"
+                        ),
+                        "color": rx.cond(State.results_ready, rx.color("blue", 9), rx.color("slate", 11)),
+                        "font_size": "0.7em",
+                        "font_weight": "medium",
+                        "border_radius": "var(--radius-1)",
+                        "white_space": "nowrap",
+                        "_hover": {
+                            "background_color": rx.cond(State.results_ready, rx.color("blue", 3), rx.color("slate", 2))
+                        }
+                    }
                 ),
                 
                 # Inline Warning Message using absolute positioning
@@ -7124,11 +7151,11 @@ def report_customization_panel():
                         State.pdf_warning_msg,
                         style={
                             "position": "absolute",
-                            "top": "25px",          
+                            "top": "22px",          
                             "left": "0px",
                             "white_space": "nowrap", 
                             "font_size": "11px",
-                            "color": "#D97706",     
+                            "color": "#D97706",    
                             "font_weight": "500",
                             "z_index": "9999",      
                         },
@@ -8725,13 +8752,13 @@ def index():
                                         height="22px",
                                         padding="0 8px",
                                         style={
-                                            "background_color": rx.cond(State.results_ready, rx.color("blue", 2), rx.color("slate", 2)),
+                                            "background_color": rx.cond(State.results_ready, rx.color("blue", 2), rx.color("slate", 4)),
                                             "border": rx.cond(
                                                 State.results_ready, 
                                                 f"1px solid {rx.color('blue', 5)}", 
-                                                f"1px solid {rx.color('slate', 5)}"
+                                                f"1px solid {rx.color('slate', 6)}"
                                             ),
-                                            "color": rx.cond(State.results_ready, rx.color("blue", 9), rx.color("slate", 8)),
+                                            "color": rx.cond(State.results_ready, rx.color("blue", 9), rx.color("slate", 11)),
                                             "font_size": "0.7em",
                                             "font_weight": "medium",
                                             "border_radius": "var(--radius-1)",
