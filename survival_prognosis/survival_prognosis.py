@@ -31,7 +31,7 @@
 # Application url:          https://healthcare-analytics-v1.web.app/                                                                       #
 #                           https://survival-prognosis-service-100651041936.us-central1.run.app/                                           #
 #                           https://clinicalprognosis.app                                                                                  #
-# Custom Domain Name        clinicalprognosis.app       --> url to get to the app                                                          #                       
+# Custom Domain Name        clinicalprognosis.app       --> url to start the app                                                          #                       
 # **************************************************************************************************************************************** #
 
 # **************************************************************************************************************************************** #
@@ -325,54 +325,148 @@ class State(rx.State):
 
         self.is_manuscript_modal_open = True
 
-    
 
     def _prepare_km_manuscript_draft(self):
-        g1_desc_text = getattr(self, "g1_detailed_label", "Group 1").replace("Group 1:", "").strip()
-        g2_desc_text = getattr(self, "g2_detailed_label", "Group 2").replace("Group 2:", "").strip()
-        g1_sz = getattr(self, "g1_n", "36")
-        g2_sz = getattr(self, "g2_n", "13")
+        # Fetch labels and robust full cohort detection from PDF logic
+        g1_label = getattr(self, "table_one_g1_label", "Group 1")
+        g2_label = getattr(self, "table_one_g2_label", "Group 2")
         
-        # Extract and clean p-value text
-        raw_p_text = getattr(self, "p_value_text", "Log-rank p: 0.80")
-        log_p = raw_p_text.replace("Log-rank p:", "").replace("Log-rank test:", "").strip()
-
-        # Safely pull live median survival strings from engine list output
-        med_list = getattr(self, "median_survival_list", [])
-        median_surv1 = med_list[0] if len(med_list) > 0 else "Group 1: 11.6 Mo | 95% CI: 9.4 - 14.9"
-        median_surv2 = med_list[1] if len(med_list) > 1 else "Group 2: 11.3 Mo | 95% CI: 2.6 - 24.0"
-
-        # Safely evaluate p-value for scientific phrasing
-        try:
-            p_val_num = float(log_p) if "<" not in log_p else 0.0001
-            is_significant = p_val_num < 0.05
-        except (ValueError, TypeError):
-            is_significant = False
-
-        # Dynamic phrasing based on actual statistical significance
-        if is_significant:
-            sig_phrase = "demonstrated statistically significant trajectory separation"
-            conclusion_phrase = "reveals distinct survival divergence"
-            results_sentence = f"The Mantel-Cox log-rank test confirmed differential survival patterns (Log-rank p = {log_p})."
-        else:
-            sig_phrase = "showed comparable survival trajectories without statistically significant divergence"
-            conclusion_phrase = "indicates similar survival patterns"
-            results_sentence = f"The Mantel-Cox log-rank test yielded no statistically significant difference between the curves (Log-rank p = {log_p})."
-
+        is_full_cohort = getattr(self, "is_full_cohort", False) or (
+            "Full Cohort" in str(getattr(self, "g1_detailed_label", "")) and 
+            "Full Cohort" in str(getattr(self, "g2_detailed_label", ""))
+        )
+        
         # Capture tie-breaking warning notice if clustered data triggered adjustments
         warning_note = getattr(self, "km_warning_message", "")
-        tie_text = ""
-        if warning_note:
-            tie_text = f" Note on Data Handling: {warning_note}"
+        tie_text = f" Note on Data Handling: {warning_note}" if warning_note else ""
 
-        self.editable_manuscript_text = f"""# COMPARATIVE KAPLAN-MEIER SURVIVAL ANALYSIS
+        # Pull live survival metrics safely
+        surv_list = getattr(self, "survival_probability_list", [])
+        med_list = getattr(self, "median_survival_list", [])
+        log_rank_p = getattr(self, "p_value_text", "N/A")
+
+        if is_full_cohort:
+            g1_sz = getattr(self, "g1_n", "228")
+            g1_surv = surv_list[0] if len(surv_list) > 0 else "Full Cohort: N/A"
+            g1_med = med_list[0] if len(med_list) > 0 else "Full Cohort: N/A"
+            
+            if ":" in str(g1_surv):
+                g1_surv = str(g1_surv).split(":", 1)[-1].strip()
+            if ":" in str(g1_med):
+                g1_med = str(g1_med).split(":", 1)[-1].strip()
+
+            self.editable_manuscript_text = f"""# UNSTRATIFIED KAPLAN-MEIER PROGNOSTIC ANALYSIS
+
+## A STROBE/REMARK-COMPLIANT EVALUATION
+
+## ABSTRACT
+Background: Non-parametric survival analysis is vital for establishing baseline clinical prognostication across study populations.
+Methods: Survival distributions for the overall cohort were estimated using the Kaplan-Meier method, with Greenwood's formula for confidence intervals.{tie_text} Multivariable adjustment was performed using a Cox proportional hazards framework.
+Results: Evaluation of the full study cohort (N = {g1_sz}) established baseline survival probabilities of {g1_surv} with a median survival time of {g1_med}.
+Conclusion: Non-parametric Kaplan-Meier estimation characterizes baseline prognostic trajectories within the unstratified population.
+
+## 1. INTRODUCTION
+Time-to-event outcomes require rigorous non-parametric estimation to properly characterize risk trajectories without imposing rigid parametric distribution assumptions.
+[USER ACTION REQUIRED: Insert 2-3 paragraphs detailing the clinical context, biological rationale, and population characteristics.]
+
+## 2. METHODS
+2.1 Study Design & Cohort Definition: Data were processed through the interactive research analytics engine. The analysis evaluates the complete study population comprising N = {g1_sz} patients.{tie_text}
+2.2 Statistical Analysis: Survival probabilities and median survival times were calculated using Kaplan-Meier estimators. Adjusted hazard ratios (HR) and 95% confidence intervals were derived using a complementary Cox proportional hazards model incorporating background clinical covariates.
+
+## 3. RESULTS
+The unstratified analysis comprises {g1_sz} patients. Overall survival probability was estimated at {g1_surv}, with a median survival time of {g1_med}. Multivariable adjustment accounting for background clinical demographics further contextualizes these survival outcomes.
+
+## 4. DISCUSSION
+[USER ACTION REQUIRED: Discuss the clinical implications of the observed baseline survival outcomes and how findings align with existing medical literature.]
+4.1 Study Limitations: Single-cohort retrospective evaluations necessitate external validation to generalizability.
+
+## 5. CONCLUSION
+The Kaplan-Meier and adjusted survival analyses provide a rigorous assessment of prognostic trajectories for the unstratified study population."""
+
+        else:
+            # --- Stratified / 2-Group Branch Using Exact PDF Parsing Logic ---
+            raw_g1_desc = getattr(self, "g1_detailed_label", "")
+            raw_g2_desc = getattr(self, "g2_detailed_label", "")
+            
+            def clean_criteria(raw_str):
+                cleaned = str(raw_str)
+                for prefix in [
+                    f"{g1_label}:", f"{g2_label}:", 
+                    "Group 1:", "Group 2:", 
+                    "Group 1 (Complement):", "Group 2 (Complement):",
+                    "Full Cohort"
+                ]:
+                    if cleaned.startswith(prefix):
+                        cleaned = cleaned.replace(prefix, "", 1).strip()
+                if cleaned.startswith("(") and cleaned.endswith(")"):
+                    cleaned = cleaned[1:-1].strip()
+                return cleaned if cleaned else "Full Cohort / Unstratified"
+
+            g1_clean = clean_criteria(raw_g1_desc)
+            g2_clean = clean_criteria(raw_g2_desc)
+
+            def parse_group_header_and_sub(label_str, clean_str):
+                is_comp = "Complement" in label_str or "Complement" in clean_str
+                
+                if "Group 1" in label_str:
+                    base_header = "Group 1"
+                elif "Group 2" in label_str:
+                    base_header = "Group 2"
+                else:
+                    base_header = label_str.split("(")[0].strip()
+                    
+                if is_comp:
+                    sub_text = "Complement Cohort"
+                else:
+                    sub_text = clean_str if clean_str and clean_str != "Full Cohort" else "Stratified Cohort"
+                    
+                return base_header, sub_text
+
+            h1_title, h1_sub = parse_group_header_and_sub(g1_label, g1_clean)
+            h2_title, h2_sub = parse_group_header_and_sub(g2_label, g2_clean)
+
+            # Build clean descriptive text strings incorporating sub-criteria or complement status
+            #g1_desc_text = f"{h1_title} ({h1_sub}: {g1_clean}" if h1_sub != "Complement Cohort" else f"{h1_title} (Complement Cohort"
+            #g2_desc_text = f"{h2_title} ({h2_sub}: {g2_clean}" if h2_sub != "Complement Cohort" else f"{h2_title} (Complement Cohort"
+
+            g1_desc_text = f"{h1_title} ({h1_sub}" if h1_sub != "Complement Cohort" else f"{h1_title} (Complement Cohort"
+            g2_desc_text = f"{h2_title} ({h2_sub}" if h2_sub != "Complement Cohort" else f"{h2_title} (Complement Cohort"
+
+            g1_sz = getattr(self, "g1_n", "36")
+            g2_sz = getattr(self, "g2_n", "13")
+            
+            log_rank_p = getattr(self, "p_value_text", "Log-rank p: 0.80")
+            log_p = log_rank_p.replace("Log-rank p:", "").replace("Log-rank test:", "").strip()
+
+            median_surv1 = med_list[0] if len(med_list) > 0 else "Group 1: 11.6 Mo | 95% CI: 9.4 - 14.9"
+            median_surv2 = med_list[1] if len(med_list) > 1 else "Group 2: 11.3 Mo | 95% CI: 2.6 - 24.0"
+
+            surv_prob1 = surv_list[0] if len(surv_list) > 0 else "Group 1: N/A"
+            surv_prob2 = surv_list[1] if len(surv_list) > 1 else "Group 2: N/A"
+
+            try:
+                p_val_num = float(log_p) if "<" not in log_p else 0.0001
+                is_significant = p_val_num < 0.05
+            except (ValueError, TypeError):
+                is_significant = False
+
+            if is_significant:
+                sig_phrase = "demonstrated statistically significant trajectory separation"
+                conclusion_phrase = "reveals distinct survival divergence"
+                results_sentence = f"The Mantel-Cox log-rank test confirmed differential survival patterns (Log-rank p = {log_p})."
+            else:
+                sig_phrase = "showed comparable survival trajectories without statistically significant divergence"
+                conclusion_phrase = "indicates similar survival patterns"
+                results_sentence = f"The Mantel-Cox log-rank test yielded no statistically significant difference between the curves (Log-rank p = {log_p})."
+
+            self.editable_manuscript_text = f"""# COMPARATIVE KAPLAN-MEIER SURVIVAL ANALYSIS
 
 ## A STROBE/REMARK-COMPLIANT EVALUATION
 
 ## ABSTRACT
 Background: Non-parametric survival analysis and inter-group trajectory comparisons are vital for assessing clinical efficacy across stratified patient cohorts.
 Methods: Survival distributions were estimated using the Kaplan-Meier method, with Greenwood's formula for confidence intervals. Inter-group differences were evaluated via the Mantel-Cox log-rank test.{tie_text} Multivariable adjustment was performed using a Cox proportional hazards framework.
-Results: Evaluation of Group 1 ({g1_desc_text}, N = {g1_sz}) versus Group 2 ({g2_desc_text}, N = {g2_sz}) {sig_phrase} (Log-rank p = {log_p}). 
+Results: Evaluation of {g1_desc_text}, N = {g1_sz}) versus {g2_desc_text}, N = {g2_sz}) {sig_phrase} (Log-rank p = {log_p}). 
 Conclusion: Stratified Kaplan-Meier analysis {conclusion_phrase}, evaluated via adjusted proportional hazards modeling.
 
 ## 1. INTRODUCTION
@@ -380,11 +474,11 @@ Time-to-event outcomes require rigorous non-parametric estimation to properly ch
 [USER ACTION REQUIRED: Insert 2-3 paragraphs detailing the clinical context, biological rationale, and hypothesis underlying the comparison of these cohorts.]
 
 ## 2. METHODS
-2.1 Study Design & Cohort Stratification: Data were processed through the interactive research analytics engine. Cohorts were stratified into Group 1 ({g1_desc_text}, N = {g1_sz}) and Group 2 ({g2_desc_text}, N = {g2_sz}).{tie_text}
+2.1 Study Design & Cohort Stratification: Data were processed through the interactive research analytics engine. Cohorts were stratified into {g1_desc_text}, N = {g1_sz}) and {g2_desc_text}, N = {g2_sz}).{tie_text}
 2.2 Statistical Analysis: Survival probabilities and median survival times were calculated using Kaplan-Meier estimators. Hypothesis testing for inter-group variance utilized the Mantel-Cox log-rank test. Adjusted hazard ratios (HR) and 95% confidence intervals were derived using a complementary Cox proportional hazards model incorporating background clinical covariates.
 
 ## 3. RESULTS
-The comparative evaluation comprised {g1_sz} patients in Group 1 and {g2_sz} patients in Group 2. {results_sentence} Median survival estimates were recorded as follows: {median_surv1} versus {median_surv2}. Multivariable adjustment accounting for baseline demographics contextualizes these survival outcomes.
+The comparative evaluation comprised {g1_sz} patients in Group 1 and {g2_sz} patients in Group 2. {results_sentence} Overall survival probabilities were estimated at {surv_prob1} versus {surv_prob2}, while median survival estimates were recorded as {median_surv1} versus {median_surv2}. Multivariable adjustment accounting for baseline demographics contextualizes these survival outcomes.
 
 ## 4. DISCUSSION
 [USER ACTION REQUIRED: Discuss the clinical implications of the observed survival separation or similarity, and how findings align with existing medical literature.]
@@ -392,7 +486,7 @@ The comparative evaluation comprised {g1_sz} patients in Group 1 and {g2_sz} pat
 
 ## 5. CONCLUSION
 The comparative Kaplan-Meier and adjusted survival analyses provide a rigorous assessment of prognostic trajectories between the evaluated cohorts."""
-
+            
     def _prepare_cph_manuscript_draft(self):
         dataset_name = getattr(self, "selected_dataset", "Clinical Cohort")
         if dataset_name:
