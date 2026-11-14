@@ -50,6 +50,8 @@
 # Docker USR/PWD/email  : robrodrd/FyIdiot&00/robrodrd@gmail.com                                                                           #
 # **************************************************************************************************************************************** #
 
+# Enter Filter in Google Cloud Run Logs Filter-Field to count site visits: httpRequest.requestUrl="/g" AND httpRequest.status=200          #
+
 import asyncio
 from typing import List, Union, Optional, Any
 import io
@@ -8708,20 +8710,19 @@ def index():
 
             # 2. Main content split side-by-side
             rx.hstack(
-
                 # --- Left Column (Wider content area)
                 rx.vstack(  # --- dedicated left-side rx.vstack locked down so it never collapses
                     rx.cond(
                         State.metadata_info != "",
                         rx.text(
-                            State.metadata_info,                  # Schreibt Metadata-Info oberhalb der Chart Area
-                            font_size="0.85em", 
+                            State.metadata_info,                    # Schreibt Metadata-Info oberhalb der Chart Area
+                            font_size="13px", 
                             font_weight="medium", 
-                            #color="#D97706",                     # Amber warning text
-                            #color="#10B981",                    # Green Status/Success
-                            color="#334155",                    # Black
-                            #color="#0f172a",                    # Black
-                            #color=rx.color("slate", 12), 
+                            color=rx.cond(
+                                State.metadata_info.contains("Source: No Dataset selected. Please select Dataset."), # Probes the string content directly
+                                "#D97706",                                           # Amber warning color when no dataset is selected
+                                "#334155"                                            # Black text color when a valid dataset/metadata is active
+                            ),
                             margin_bottom="0.8em",
                             text_align="left",
                             width="100%",
