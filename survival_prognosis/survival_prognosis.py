@@ -10758,12 +10758,10 @@ def index():
                     
                     # Benchmarks & Pricing Section
                     rx.vstack(
-                        rx.heading("Datasets & Pricing", size="3", margin_bottom="0.5rem"),
+                        rx.heading("Datasets & Flexibility", size="3", margin_bottom="0.5rem"),
                         
-                        rx.text("• Built-In Benchmarking Datasets: Get started immediately using the pre-loaded, open public benchmarks for exploration and testing:", size="2"),
-                        rx.text("  - NCCTG Lung Cancer Data (Loprinzi et al., 1994) – Advanced lung cancer study.", size="2", padding_left="1rem"),
-                        rx.text("  - GBSG2 Breast Cancer Study (1994) – 686 node-positive breast cancer patients.", size="2", padding_left="1rem"),
-                        rx.text("• Uploading Your Own Dataset: Free usage is provided using built-in public datasets. To analyze proprietary patient data, upload your own datasets via flexible subscription tiers: $46.00/month or an annual subscription of $440.00.", size="2"),
+                        rx.text("• Get started immediately using pre-loaded open-source benchmark datasets (NCCTG Lung Cancer, GBSG2 Breast Cancer).", size="2"),
+                        rx.text("• The platform also supports uploading and analyzing proprietary institutional datasets via flexible individual and research group subscription tiers.", size="2"),
                         
                         spacing="2",
                     ),
